@@ -1,13 +1,13 @@
 # corrigir-nfe
 
 Programa com tela que analisa o XML da NF-e **antes da transmissão**, corrige o
-que é objetivo e aponta o que depende de decisão fiscal. Feito para o próprio
-cliente usar: escolhe a nota, clica em **Corrigir nota**, transmite de novo.
+que é objetivo e aponta o que depende de decisão fiscal. Feito para quem emite a
+nota usar sem conhecer o layout: escolhe a nota, clica em **Corrigir nota** e
+transmite de novo.
 
-É uma solução provisória até a totalização ser corrigida no sistema emissor.
-
-Nasceu de cinco notas da Ladopet rejeitadas entre 13 e 16/10/2026, todas pelo mesmo
-conjunto de defeitos no XML gerado pelo FlexCorp.
+É uma solução provisória para emissores cuja totalização gera XMLs que a SEFAZ
+rejeita (totais que não batem com a soma dos itens, tags fora de ordem, tags
+opcionais em branco).
 
 ---
 
@@ -18,12 +18,12 @@ dotnet publish -c Release
 ```
 
 Sai um executável único em `bin/Release/net8.0-windows/win-x64/publish/corrigir-nfe.exe`.
-É só esse arquivo que vai para a máquina do cliente — não precisa instalar .NET.
+É só esse arquivo que vai para a máquina de quem usa — não precisa instalar .NET.
 
 ## Usar
 
-1. **Primeira vez:** o programa abre pedindo duas pastas — onde o sistema grava os
-   XMLs das notas e onde guardar os backups. A configuração fica em
+1. **Primeira vez:** o programa abre pedindo duas pastas — onde o sistema emissor
+   grava os XMLs das notas e onde guardar os backups. A configuração fica em
    `%LocalAppData%\CorrigirNFe\config.ini` (vale por usuário do Windows).
 2. **Dia a dia:** a lista mostra as notas da pasta, da mais recente para a mais
    antiga. As que precisam de correção aparecem em vermelho; a tela já abre nelas.
@@ -63,7 +63,7 @@ Só o que é objetivo, ou seja, o que tem uma resposta única e verificável:
 - tags opcionais enviadas em branco (`CEST`, `xPed`, `nItemPed`, …)
 - grupos opcionais totalmente vazios (`entrega`, `retirada`)
 - tags que não existem mais no grupo (`vBCSTRet`/`vICMSSTRet` no `ICMSTot`)
-- máscara na Inscrição Estadual (`13.904.578-3` → `139045783`)
+- máscara na Inscrição Estadual (`12.345.678-9` → `123456789`)
 
 **Cálculos**
 - `vProd` = `qCom × vUnCom`, arredondado a 2 casas
@@ -82,27 +82,31 @@ obrigatória em branco, tag estranha com conteúdo dentro de um grupo.
 
 ---
 
-## A regra que causou tudo isso
+## A regra por trás da rejeição
 
-A SEFAZ soma os valores **já arredondados** de cada item. O FlexCorp soma os
-valores exatos e arredonda no fim. Os dois resultados divergem sempre que as
-frações de centavo descartadas em cada item cruzam a fronteira do meio centavo:
+A SEFAZ soma os valores **já arredondados** de cada item. Muitos emissores somam
+os valores exatos e arredondam só no fim. Os dois resultados divergem sempre que
+as frações de centavo descartadas em cada item cruzam a fronteira do meio centavo.
+
+Exemplo com três itens iguais, `qCom` 3 × `vUnCom` 3,3350:
 
 ```
-soma exata dos itens          1514,0511  → arredonda → 1514,05   (FlexCorp enviou)
-soma dos vProd já arredondados                         1514,06   (SEFAZ espera)
+cada item: 3 × 3,3350 = 10,005  → vProd 10,01
+soma exata dos itens   30,015   → arredonda → 30,02   (total enviado pelo emissor)
+soma dos vProd já arredondados  10,01 × 3 = 30,03     (o que a SEFAZ espera)
 ```
 
-Daí a rejeição "Total do Produto / Serviço difere do somatório dos itens".
+Daí a rejeição "Total do Produto / Serviço difere do somatório dos itens". O erro
+é intermitente e cresce com o número de itens da nota.
 
-Há um segundo defeito, visto na NF 443: `90 × 1,6785 = 151,065` caiu em
-`vProd` como `151,07` e em `vItem` como `151,06` — o mesmo número arredondado
-de dois jeitos dentro do mesmo item. É o sintoma clássico de um dos caminhos
-estar calculando em `float` em vez de decimal.
+Outro defeito possível: o mesmo valor arredondado de dois jeitos dentro do mesmo
+item — por exemplo `10 × 15,1065 = 151,065` aparecendo como `151,07` em `vProd`
+e `151,06` em `vItem`. É o sintoma clássico de um dos caminhos estar calculando
+em `float` em vez de `decimal`.
 
-Por isso `Corretor.R2()` usa `decimal` com `MidpointRounding.AwayFromZero`,
-e o código não usa `double` em lugar nenhum. **Se for portar esta lógica para
-o FlexCorp, esse é o ponto que importa.**
+Por isso `Corretor.R2()` usa `decimal` com `MidpointRounding.AwayFromZero`, e o
+código não usa `double` em lugar nenhum. **Se for portar esta lógica para um
+emissor, esse é o ponto que importa.**
 
 ---
 
@@ -133,27 +137,22 @@ propósito: reordenar pelo nome poderia embaralhar o grupo errado.
 
 - **XML assinado:** a assinatura é removida (o conteúdo mudou) e a nota precisa
   ser **assinada de novo** antes de transmitir. O programa avisa. Os XMLs que o
-  sistema deixa na pasta antes de transmitir vêm sem assinatura — o emissor assina
-  na hora do envio —, então no uso normal isso não acontece.
+  sistema deixa na pasta antes de transmitir normalmente vêm sem assinatura — o
+  emissor assina na hora do envio —, então no uso normal isso não acontece.
 - **Nota já autorizada (`nfeProc`):** recusada de propósito. Nota autorizada não
   se corrige — o caminho é cancelamento ou carta de correção.
 - **XML copiado da aba do navegador:** funciona (o aviso do Chrome antes do XML é
-  descartado), mas o certo é pegar o arquivo direto da pasta do FlexCorp.
+  descartado), mas o certo é pegar o arquivo direto da pasta do sistema emissor.
+- **Dados fiscais não entram no repositório:** XMLs de nota e backups contêm dados
+  de clientes. O `.gitignore` bloqueia `*.xml` e as pastas de backup; não os versione.
 
 ---
 
 ## Testes
 
-Validado contra as cinco notas reais (1601, 1606, 207, 443, 1857 — quatro filiais).
-Em todas, a saída bate com a correção feita manualmente e valida sem nenhum erro
-contra `nfe_v4.00.xsd`, à exceção da assinatura, que o emissor aplica depois.
+Validado contra cinco NF-e reais rejeitadas, de quatro filiais de um mesmo emitente.
+Em todas, a saída valida sem nenhum erro contra `nfe_v4.00.xsd`, à exceção da
+assinatura, que o emissor aplica depois. Rodar a correção na própria saída não
+muda mais nada (idempotente), e Restaurar devolve o original byte a byte.
 
-| Nota | Itens | Correção nos totais |
-|---|---|---|
-| 1601 | 55 | vProd 15.046,37 → 15.046,36 · vICMS 2.448,66 → 2.448,68 |
-| 1606 | 12 | vProd 1.514,05 → 1.514,06 · vICMS 238,09 → 238,08 |
-| 207 | 11 | vProd 1.223,13 → 1.223,15 · vICMS 95,50 → 95,51 |
-| 443 | 4 | vProd 498,27 → 498,28 (+ `vItem` do item 1) |
-| 1857 | 13 | vProd 1.737,09 → 1.737,06 · vICMS 295,31 → 295,32 |
-
-Rodar o programa na própria saída não muda mais nada (idempotente).
+Os XMLs de teste **não fazem parte do repositório**.
