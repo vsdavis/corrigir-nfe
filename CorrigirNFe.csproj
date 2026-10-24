@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>corrigir-nfe</AssemblyName>
+    <RootNamespace>CorrigirNFe</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+
+    <Version>2.0.0</Version>
+    <Company>RRSoft</Company>
+    <Product>Corrigir NF-e</Product>
+    <Description>Analisa e corrige o XML da NF-e antes da transmissao</Description>
+
+    <!-- Publicacao como executavel unico, sem exigir runtime na maquina do cliente. -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>

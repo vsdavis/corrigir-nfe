@@ -1,0 +1,27 @@
+@'
+# compilacao
+bin/
+obj/
+publish/
+*.exe
+*.pdb
+.vs/
+*.user
+*.suo
+
+# NUNCA versionar: notas fiscais e backups (dados do cliente)
+*.xml
+*.corrigida.xml
+*.tmp
+backup/
+Backup/
+historico.log
+
+# configuracao local e chaves
+config.ini
+*.pfx
+*.p12
+*.pem
+*.key
+.env
+'@ | Set-Content -Encoding utf8 .gitignore
